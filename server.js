@@ -384,11 +384,21 @@ app.get('/getAppointmentData', (req, res) => {
 
 // Endpoint to generate report
 app.get('/generateReport', (req, res) => {
-    const { type,  } = req.query;
+    const { type, region } = req.query;
     //console.log("In generate report: " + type);
     let sqlQuery = '';
 
     // Determine SQL query based on report type
+
+    // Select connection based on add_RegionName
+    let connection;
+    if (region === 'Luzon') {
+        console.log("report Going to Luzon");
+        connection = centralToLuzonConnection;
+    } else {
+        console.log("report Going to Vismin");
+        connection = centralToVisMinConnection;
+    }
     if (type === 'total_app_type') {
         sqlQuery = `SELECT app_type, COUNT(*) AS total_count FROM DenormalizedAppointments GROUP BY app_type ORDER BY total_count DESC`;
     } else if (type === 'clinic_performance') {
