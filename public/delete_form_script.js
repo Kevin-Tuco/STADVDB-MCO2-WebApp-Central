@@ -1,5 +1,5 @@
 const delete_apptidInput = document.getElementById('delete_apptid');
-
+const delete_regionInput = document.getElementById('delete_region');
 // Add event listener to apptid input
 delete_apptidInput.addEventListener('input', function() {
     // Call fetchAppointmentData with the input value
@@ -29,6 +29,7 @@ function del_showInputs() {
 //Function to check if the apptid is valid
 function delete_checkApptid() {
     const apptidValue = delete_apptidInput.value.toUpperCase();
+    const regionValue = delete_regionInput.value
     let result = 0;
     if (!apptidValue) return;
 
@@ -40,7 +41,7 @@ function delete_checkApptid() {
     }
 
     // Call an API endpoint to check if pxid exists in the database
-    fetch(`/checkApptid?apptid=${apptidValue}`)
+    fetch(`/checkApptid?apptid=${apptidValue}&region=${regionValue}`)
         .then(response => response.json())
         .then(data => {
             if (!data.exists) {
@@ -66,7 +67,8 @@ function delete_checkApptid() {
 
 function deleteFetchAppointmentData(apptid) {
     // Make a fetch request to retrieve appointment data
-    fetch(`/getAppointmentData?apptid=${apptid}`)
+    const regionValue = regionInput.value
+    fetch(`/getAppointmentData?apptid=${apptid}&region=${regionValue}`)
         .then(response => response.json())
         .then(data => {
             // Populate form inputs with fetched data
@@ -81,6 +83,7 @@ function deleteFetchAppointmentData(apptid) {
             document.getElementById('delete_EndTime-val').textContent = 'End Time: ' + data.EndTime;
             document.getElementById('delete_app_type-val').textContent = 'Appointment Type: ' + data.app_type;
             document.getElementById('delete_is_Virtual-val').textContent = 'Is Virtual: ' + data.is_Virtual;
+            document.getElementById('update_RegionName-val').textContent = 'Region: ' + data.RegionName;
         })
         .catch(error => {
             console.error('Error fetching appointment data:', error);

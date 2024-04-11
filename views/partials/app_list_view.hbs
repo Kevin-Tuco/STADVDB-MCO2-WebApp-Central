@@ -26,14 +26,16 @@
             <tr>
                 <th scope="col">PX ID</th>
                 <th scope="col">Clinic ID</th>
-                <th scope="col">Doctor ID</th>
                 <th scope="col">Appointment ID</th>
+                <th scope="col">Doctor ID</th>
+                <th scope="col">Application Type</th>
+                <th scope="col">Virtual</th>
                 <th scope="col">Status</th>
+                <th scope="col">RegionName</th>
+                <th scope="col">Province</th>
                 <th scope="col">Queue Date</th>
                 <th scope="col">Start Time</th>
                 <th scope="col">End Time</th>
-                <th scope="col">Application Type</th>
-                <th scope="col">Virtual</th>
             </tr>
         </thead>
         <tbody>
@@ -41,14 +43,17 @@
             <tr>
                 <td>{{pxid}}</td>
                 <td>{{clinicid}}</td>
-                <td>{{doctorid}}</td>
                 <td>{{apptid}}</td>
+                <td>{{doctorid}}</td>
+                <td>{{app_type}}</td>
+                <td>{{is_Virtual}}</td>
                 <td>{{status}}</td>
+                <td>{{RegionName}}</td>
+                <td>{{Province}}</td>
                 <td>{{QueueDate}}</td>
                 <td>{{StartTime}}</td>
                 <td>{{EndTime}}</td>
-                <td>{{app_type}}</td>
-                <td>{{is_Virtual}}</td>
+                
             </tr>
             {{/each}}
         </tbody>

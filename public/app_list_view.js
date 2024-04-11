@@ -36,22 +36,25 @@ filterValuesSelect.addEventListener('change', (event) => {
         .then(response => response.json())
         .then(data => {
             // Clear previous table rows
-            const tbody = document.querySelector('#appointments-list tbody');
+            const tbody = document.querySelector('#appointments-list-container tbody');
             tbody.innerHTML = '';
             // Add new rows
-            data.forEach(appointment => {
+            data.forEach(appointments => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${appointment.pxid}</td>
-                    <td>${appointment.clinicid}</td>
-                    <td>${appointment.doctorid}</td>
-                    <td>${appointment.apptid}</td>
-                    <td>${appointment.status}</td>
-                    <td>${appointment.QueueDate}</td>
-                    <td>${appointment.StartTime}</td>
-                    <td>${appointment.EndTime}</td>
-                    <td>${appointment.app_type}</td>
-                    <td>${appointment.is_Virtual}</td>
+                    <td>${appointments.pxid}</td>
+                    <td>${appointments.clinicid}</td>
+                    <td>${appointments.apptid}</td>
+                    <td>${appointments.doctorid}</td>
+                    <td>${appointments.app_type}</td>
+                    <td>${appointments.is_Virtual}</td>
+                    <td>${appointments.status}</td>
+                    <td>${appointments.RegionName}</td>
+                    <td>${appointments.Province}</td>
+                    <td>${appointments.QueueDate}</td>
+                    <td>${appointments.StartTime}</td>
+                    <td>${appointments.EndTime}</td>
+                    
                 `;
                 tbody.appendChild(row);
             });

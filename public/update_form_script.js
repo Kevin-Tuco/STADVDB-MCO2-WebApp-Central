@@ -27,6 +27,7 @@ hideInputs();
 
 // Select the apptid input field
 const apptidInput = document.getElementById('update_apptid');
+const regionInput = document.getElementById('update_region');
 const update_submitButton = document.querySelector('.submit-update');
 
 // Function to disable the submit button
@@ -52,6 +53,7 @@ apptidInput.addEventListener('input', function() {
 
 function checkApptid() {
     const apptidValue = apptidInput.value.toUpperCase();
+    const regionValue = regionInput.value
     let result = 0;
 
     // Clear the error message if the input is empty
@@ -62,7 +64,7 @@ function checkApptid() {
     }
 
     // Call an API endpoint to check if apptid exists in the database
-    fetch(`/checkApptid?apptid=${apptidValue}`)
+    fetch(`/checkApptid?apptid=${apptidValue}&region=${regionValue}`)
         .then(response => response.json())
         .then(data => {
             if (!data.exists) {
@@ -90,7 +92,8 @@ function checkApptid() {
 // Function to fetch appointment data based on apptid
 function fetchAppointmentData(apptid) {
     // Make a fetch request to retrieve appointment data
-    fetch(`/getAppointmentData?apptid=${apptid}`)
+    const regionValue = regionInput.value
+    fetch(`/getAppointmentData?apptid=${apptid}&region=${regionValue}`)
         .then(response => response.json())
         .then(data => {
             // Populate form inputs with fetched data
@@ -98,6 +101,7 @@ function fetchAppointmentData(apptid) {
             document.getElementById('update_clinicid').value = data.clinicid || '';
             document.getElementById('update_doctorid').value = data.doctorid || ''; // Fix: Use doctorid instead of clinicid
             document.getElementById('update_status').value = data.status || '';
+            document.getElementById('update_RegionName').value = data.RegionName || '';
             document.getElementById('update_apptid-val').textContent = 'Appointment Id: ' + data.apptid;
             document.getElementById('update_pxid-val').textContent = 'Patient Id: ' + data.pxid;
             document.getElementById('update_clinicid-val').textContent = 'Clinic Id: ' + data.clinicid;
@@ -109,6 +113,7 @@ function fetchAppointmentData(apptid) {
             document.getElementById('update_EndTime-val').textContent = 'End Time: ' + data.EndTime;
             document.getElementById('update_app_type-val').textContent = 'Appointment Type: ' + data.app_type;
             document.getElementById('update_is_Virtual-val').textContent = 'Is Virtual: ' + data.is_Virtual;
+            document.getElementById('update_RegionName-val').textContent = 'Region: ' + data.RegionName;
         })
         .catch(error => {
             console.error('Error fetching appointment data:', error);
