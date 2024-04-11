@@ -33,7 +33,7 @@ const centralToVisMinConnection = mysql.createConnection({
 });
 
 // Luzon Recovery Database Connection
-const luzonRecoveryConnection = mysql.createConnection({
+const luzonConnection = mysql.createConnection({
     host: process.env.LUZON_RECOVERY_HOST,
     port: process.env.LUZON_RECOVERY_PORT,
     user: process.env.LUZON_RECOVERY_USER,
@@ -42,7 +42,7 @@ const luzonRecoveryConnection = mysql.createConnection({
 });
 
 // VisMin Recovery Database Connection
-const visMinRecoveryConnection = mysql.createConnection({
+const visMinConnection = mysql.createConnection({
     host: process.env.VISMIN_RECOVERY_HOST,
     port: process.env.VISMIN_RECOVERY_PORT,
     user: process.env.VISMIN_RECOVERY_USER,
@@ -70,18 +70,18 @@ centralToVisMinConnection.connect(err => {
 });
 
 // Connect to Luzon Recovery Database
-luzonRecoveryConnection.connect(err => {
+luzonConnection.connect(err => {
     if (err) {
-        console.error('Error connecting to Luzon Recovery database:', err);
+        console.error('Error connecting to Luzon database:', err);
         return;
     }
     console.log('Connected to Luzon Recovery database');
 });
 
 // Connect to VisMin Recovery Database
-visMinRecoveryConnection.connect(err => {
+visMinConnection.connect(err => {
     if (err) {
-        console.error('Error connecting to VisMin Recovery database:', err);
+        console.error('Error connecting to VisMin database:', err);
         return;
     }
     console.log('Connected to VisMin Recovery database');
@@ -248,21 +248,30 @@ app.post('/addAppointment', async (req, res) => {
         let connection;
         if (add_RegionName === 'Central Luzon (III)' || add_RegionName === 'National Capital Region' || add_RegionName === 'National Capital Region (NCR)' || add_RegionName === 'Bicol Region (V)' || add_RegionName === 'MIMAROPA (IV-B)' || add_RegionName === 'CALABARZON (IV-A)' || add_RegionName === 'Ilocos Region (I)' || add_RegionName === 'Cordillera Administrative Region (CAR)' || add_RegionName === 'Cagayan Valley (II)') {
             //console.log("add Going to Luzon");
-            connection = centralToLuzonConnection;
+            connection1 = centralToLuzonConnection;
+            connection2 = luzonConnection;
         } else {
             //console.log("add Going to Vismin");
-            connection = centralToVisMinConnection;
+            connection1 = centralToVisMinConnection;
+            connection2 = visMinConnection;
         }
 
         // Insert the appointment data into the database using the selected connection
         const query = 'INSERT INTO DenormalizedAppointments (pxid, clinicid, apptid, doctorid, app_type, is_virtual, status, QueueDate, StartTime, EndTime, RegionName) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)';
         const values = [add_pxid, add_clinicid, apptid, add_doctorid, add_app_type, add_is_Virtual, add_status, add_QueueDate, add_RegionName];
-        connection.query(query, values, (error, results) => {
+        connection1.query(query, values, (error, results) => {
             if (error) {
                 console.error('Error adding appointment:', error);
                 res.status(500).json({ error: 'Internal server error' });
                 return;
             }
+            connection2.query(query, values, (error) => {
+                if (error) {
+                    console.error('Error adding appointment:', error);
+                    res.status(500).json({ error: 'Internal server error' });
+                    return;
+                }
+            });
 
             // Respond with success message or inserted ID
             res.json({ success: true, insertedId: results.insertId });
