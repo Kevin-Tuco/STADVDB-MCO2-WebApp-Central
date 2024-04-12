@@ -1,2 +1,0 @@
-SELECT * FROM table, [1,2,3], Central
-SELECT * FROM table, [1,2,3], Luzon
