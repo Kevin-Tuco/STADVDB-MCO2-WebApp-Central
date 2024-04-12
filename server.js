@@ -3,6 +3,7 @@ const mysql = require('mysql2');
 const path = require('path');
 const exphbs = require('express-handlebars');
 const bodyParser = require('body-parser');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -14,6 +15,12 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 /*------------ Connection Setup-----------*/
+let VisMinDB_State = true;
+let CentralDB_State = true;
+let LuzonDB_State = true;
+
+
+
 // Central to Luzon Database Connection
 const centralToLuzonConnection = mysql.createConnection({
     host: process.env.CENTRAL_TO_LUZON_HOST,
@@ -23,7 +30,7 @@ const centralToLuzonConnection = mysql.createConnection({
     database: process.env.CENTRAL_TO_LUZON_DATABASE
 });
 
-// Central to Luzon Database Connection
+// Central to VisMin Database Connection
 const centralToVisMinConnection = mysql.createConnection({
     host: process.env.CENTRAL_TO_VISMIN_HOST,
     port: process.env.CENTRAL_TO_VISMIN_PORT,
@@ -32,7 +39,7 @@ const centralToVisMinConnection = mysql.createConnection({
     database: process.env.CENTRAL_TO_VISMIN_DATABASE
 });
 
-// Luzon Recovery Database Connection
+// Luzon Database Connection
 const luzonConnection = mysql.createConnection({
     host: process.env.LUZON_RECOVERY_HOST,
     port: process.env.LUZON_RECOVERY_PORT,
@@ -41,7 +48,7 @@ const luzonConnection = mysql.createConnection({
     database: process.env.LUZON_RECOVERY_DATABASE
 });
 
-// VisMin Recovery Database Connection
+// VisMin Database Connection
 const visMinConnection = mysql.createConnection({
     host: process.env.VISMIN_RECOVERY_HOST,
     port: process.env.VISMIN_RECOVERY_PORT,
@@ -49,6 +56,12 @@ const visMinConnection = mysql.createConnection({
     password: process.env.VISMIN_RECOVERY_PASSWORD,
     database: process.env.VISMIN_RECOVERY_DATABASE
 });
+
+let CentralVM = centralToVisMinConnection;
+let CentralL = centralToLuzonConnection;
+let Luzon = luzonConnection;
+let VisMin = visMinConnection;
+
 
 /*------------ Connection Initialize-----------*/
 // Connect to Central Database
@@ -87,6 +100,100 @@ visMinConnection.connect(err => {
     console.log('Connected to VisMin Recovery database');
 });
 
+/*-----------Connection Function--------*/
+
+// Route to handle closing connection to Central
+app.get('/dbChange', (req, res) => {
+    const action = req.query.action;
+    switch (action) {
+        case 'closeConnectionToCentral':
+            CentralDB_State = false;
+            res.json({ success: true });
+            break;
+        case 'closeConnectionToVisMin':
+            VisMinDB_State = false;
+            res.json({ success: true });
+            break;
+        case 'closeConnectionToLuzon':
+            LuzonDB_State = false
+            res.json({ success: true });
+            break;
+        case 'openConnectionToCentral':
+            CentralDB_State = true;
+            res.json({ success: true });
+            break;
+        case 'openConnectionToVisMin':
+            VisMinDB_State = true;
+            res.json({ success: true });
+            break;
+        case 'openConnectionToLuzon':
+            LuzonDB_State = true;
+            res.json({ success: true });
+            break;
+        default:
+            res.status(400).json({ error: 'Invalid action' });
+    }
+});
+
+function writeToLogFile(sql, values, connection) {
+    // Define the path to the log file
+    const logFilePath = 'database_log.json';
+    
+    // Combine the parameters into a single array
+    const data = [sql, values, connection];
+
+    // Check if the log file exists
+    if (fs.existsSync(logFilePath)) {
+        // If the file exists, read its content
+        fs.readFile(logFilePath, 'utf8', (err, content) => {
+            if (err) {
+                console.error('Error reading log file:', err);
+                return;
+            }
+            // Parse the existing content as JSON
+            let logs = JSON.parse(content);
+            // Append the new data to the existing logs
+            logs.push(data);
+            // Write the updated logs back to the file
+            fs.writeFile(logFilePath, JSON.stringify(logs, null, 4), 'utf8', (err) => {
+                if (err) {
+                    console.error('Error writing to log file:', err);
+                    return;
+                }
+                console.log('Data has been written to log file successfully.');
+            });
+        });
+    } else {
+        // If the log file doesn't exist, create a new one and write the data
+        const newData = [data];
+        fs.writeFile(logFilePath, JSON.stringify(newData, null, 4), 'utf8', (err) => {
+            if (err) {
+                console.error('Error writing to log file:', err);
+                return;
+            }
+            console.log('Log file has been created and data has been written successfully.');
+        });
+    }
+}
+
+// Define a function to handle database operations
+function handleDatabaseOperation(sql, values, db, res) {
+    if (!values) {
+        // If values are not provided, set it to an empty array
+        values = [];
+    }
+
+    connection.query(sql, values, (err, results) => {
+        if (err) {
+            console.error('Error executing SQL query:', err);
+            res.status(500).json({ error: 'Internal server error' });
+            return;
+        }
+        res.json(results);
+    });
+}
+
+
 
 /*------------ HBS Functions-----------*/
 // Set Handlebars as the view engine
@@ -104,6 +211,8 @@ app.set('views', path.join(__dirname, 'views'));
 // Serve static files from the "public" directory
 app.use(express.static(path.join(__dirname, 'public')));
 
+
+/*------------ HBS Functions-----------*/
 // Define routes
 app.get('/', (req, res) => {
     let appointmentsFromLuzon, appointmentsFromVisMin;
@@ -218,8 +327,10 @@ app.get('/checkApptid', (req, res) => {
     let connection;
     if (region === 'Luzon') {
         connection = centralToLuzonConnection;
+        connection = luzonConnection; //bev
     } else {
         connection = centralToVisMinConnection;
+        connection = visMinConnection; //bev
     }
     // Query to check if apptid exists
     const query = `SELECT COUNT(*) AS count FROM DenormalizedAppointments WHERE apptid = ?`;
@@ -245,7 +356,8 @@ app.post('/addAppointment', async (req, res) => {
         const apptid = await generateApptId(add_RegionName);
 
         // Select connection based on add_RegionName
-        let connection;
+        let connection1;
+        let connection2;
         if (add_RegionName === 'Central Luzon (III)' || add_RegionName === 'National Capital Region' || add_RegionName === 'National Capital Region (NCR)' || add_RegionName === 'Bicol Region (V)' || add_RegionName === 'MIMAROPA (IV-B)' || add_RegionName === 'CALABARZON (IV-A)' || add_RegionName === 'Ilocos Region (I)' || add_RegionName === 'Cordillera Administrative Region (CAR)' || add_RegionName === 'Cagayan Valley (II)') {
             //console.log("add Going to Luzon");
             connection1 = centralToLuzonConnection;
@@ -297,9 +409,11 @@ app.post('/updateAppointment', async (req, res) => {
         if (update_region === 'Luzon') {
             //console.log("update Going to Luzon");
             connection = centralToLuzonConnection;
+            connection = luzonConnection; //bev
         } else {
             //console.log("update Going to Vismin");
             connection = centralToVisMinConnection;
+            connection = visMinConnection; //bev
         }
         // Update the appointment data in the database
         const query = 'UPDATE DenormalizedAppointments SET status = ?, StartTime = ?, EndTime = ?, app_type = ?, is_Virtual = ? WHERE apptid = ?';
@@ -328,9 +442,11 @@ app.post('/deleteAppointment', async (req, res) => {
     if (delete_region === 'Luzon') {
         //console.log("delete Going to Luzon");
         connection = centralToLuzonConnection;
+        connection = luzonConnection; //bev
     } else {
         //console.log("delete Going to vismin");
         connection = centralToVisMinConnection;
+        connection = visMinConnection; //bev
     }
 
     try {
@@ -362,9 +478,11 @@ app.get('/getAppointmentData', (req, res) => {
     if (region === 'Luzon') {
         //console.log("Get app data Going to Luzon");
         connection = centralToLuzonConnection;
+        connection = luzonConnection; //bev
     } else {
         //onsole.log("Get app data Going to vismin");
         connection = centralToVisMinConnection;
+        connection = visMinConnection; //bev
     }  
     // Query to retrieve appointment data based on apptid
     const query = 'SELECT * FROM DenormalizedAppointments WHERE apptid = ?';
@@ -404,9 +522,11 @@ app.get('/generateReport', (req, res) => {
     if (region === 'Luzon') {
         console.log("report Going to Luzon");
         connection = centralToLuzonConnection;
+        connection = luzonConnection; //bev
     } else {
         console.log("report Going to Vismin");
         connection = centralToVisMinConnection;
+        connection = visMinConnection; //bev
     }
     if (type === 'total_app_type') {
         sqlQuery = `SELECT app_type, COUNT(*) AS total_count FROM DenormalizedAppointments GROUP BY app_type ORDER BY total_count DESC`;
@@ -444,8 +564,10 @@ function generateApptId(add_RegionName) {
         let connection;
         if (add_RegionName === 'Central Luzon (III)' || add_RegionName === 'National Capital Region' || add_RegionName === 'National Capital Region (NCR)' || add_RegionName === 'Bicol Region (V)' || add_RegionName === 'MIMAROPA (IV-B)' || add_RegionName === 'CALABARZON (IV-A)' || add_RegionName === 'Ilocos Region (I)' || add_RegionName === 'Cordillera Administrative Region (CAR)' || add_RegionName === 'Cagayan Valley (II)') {
             connection = centralToLuzonConnection;
+            connection = luzonConnection; //bev
         } else {
             connection = centralToVisMinConnection;
+            connection = visMinConnection; //bev
         }
 
         connection.query(query, [pattern], (error, results) => {
@@ -474,6 +596,12 @@ function generateApptId(add_RegionName) {
         });
     });
 }
+/*
+    Case 1: Central down during transaction& comes back online
+    Case 2: Luz / VisMin is unavailable & comes back online 
+    Case 3: Can't write to Central when Replicating from Luz / VisMin
+    Case 4: Can't write to Luzon / VisMin while replicating from central 
+*/
 
 // Start server
 const PORT = process.env.PORT || 3000;
