@@ -137,60 +137,199 @@ app.get('/dbChange', (req, res) => {
 
 function writeToLogFile(sql, values, connection) {
     // Define the path to the log file
-    const logFilePath = 'database_log.json';
-    
-    // Combine the parameters into a single array
-    const data = [sql, values, connection];
+    const logFilePath = 'database_log.txt';
 
-    // Check if the log file exists
-    if (fs.existsSync(logFilePath)) {
-        // If the file exists, read its content
-        fs.readFile(logFilePath, 'utf8', (err, content) => {
-            if (err) {
-                console.error('Error reading log file:', err);
-                return;
-            }
-            // Parse the existing content as JSON
-            let logs = JSON.parse(content);
-            // Append the new data to the existing logs
-            logs.push(data);
-            // Write the updated logs back to the file
-            fs.writeFile(logFilePath, JSON.stringify(logs, null, 4), 'utf8', (err) => {
-                if (err) {
-                    console.error('Error writing to log file:', err);
-                    return;
-                }
-                console.log('Data has been written to log file successfully.');
-            });
-        });
-    } else {
-        // If the log file doesn't exist, create a new one and write the data
-        const newData = [data];
-        fs.writeFile(logFilePath, JSON.stringify(newData, null, 4), 'utf8', (err) => {
-            if (err) {
-                console.error('Error writing to log file:', err);
-                return;
-            }
-            console.log('Log file has been created and data has been written successfully.');
-        });
-    }
-}
+    // Format the data as a string
+    const data = `${sql}, ${JSON.stringify(values)}, ${connection}\n`;
 
-// Define a function to handle database operations
-function handleDatabaseOperation(sql, values, db, res) {
-    if (!values) {
-        // If values are not provided, set it to an empty array
-        values = [];
-    }
-
-    connection.query(sql, values, (err, results) => {
+    // Append the data to the log file
+    fs.appendFile(logFilePath, data, (err) => {
         if (err) {
-            console.error('Error executing SQL query:', err);
-            res.status(500).json({ error: 'Internal server error' });
+            console.error('Error writing to log file:', err);
             return;
         }
-        res.json(results);
+        console.log('Data has been written to log file successfully.');
     });
+}
+
+// Example usage:
+writeToLogFile("SELECT * FROM table", [1, 2, 3], "Central");
+writeToLogFile("SELECT * FROM table", [1, 2, 3], "Luzon");
+
+
+
+// Define a function to handle database operations
+async function handleDatabaseOperation(sql, values, action, db) {
+    console.log("\nIn Handle Database Operations");
+    if (action == "Write") {
+        console.log("In Write");
+        if (db == "Luzon") {
+            console.log("In Write-Luzon");
+            try {
+                if (CentralDB_State) {
+                    const resultsWriteCentralLuzon = await new Promise((resolve, reject) => {
+                        console.log("In Write-Luzon: Writing to Central");
+                        centralToLuzonConnection.query(sql, values, (err, resultsWriteCentralLuzon) => {
+                            if (err) {
+                                console.error('Central-Luzon DB -> Error executing SQL query:', err);
+                                reject(err);
+                                return;
+                            }
+                            resolve(resultsWriteCentralLuzon);
+                        });
+                    });
+                    if (resultsWriteCentralLuzon.exists) {
+                        console.log("Central-Luzon DB -> Transaction Success");
+                    }
+                } else {
+                    await writeToLogFile(sql, values, "CentralLuzon");
+                    console.log("Central-Luzon DB -> Transaction Logged");
+                }
+
+                if (LuzonDB_State) {
+                    console.log("In Write-Luzon: Writing to Luzon");
+                    const resultsWriteLuzon = await new Promise((resolve, reject) => {
+                        luzonConnection.query(sql, values, (err, resultsWriteLuzon) => {
+                            if (err) {
+                                console.error('Luzon DB -> Error executing SQL query:', err);
+                                reject(err);
+                                return;
+                            }
+                            resolve(resultsWriteLuzon);
+                        });
+                    });
+                    if (resultsWriteLuzon.exists) {
+                        console.log("Luzon DB -> Transaction Success");
+                    }
+                } else {
+                    await writeToLogFile(sql, values, "Luzon");
+                    console.log("Luzon DB -> Transaction Logged");
+                }
+
+                return "Success";
+            } catch (error) {
+                console.error('Error during write operation:', error);
+                response.status(500).json({ error: 'Internal server error' });
+                return;
+            }
+        } else if (db == "VisMin") {
+            console.log("In Write-VisMin");
+            try {
+                if (CentralDB_State) {
+                    console.log("In Write-VisMin: Writing to Central");
+                    const resultsWriteCentralVisMin = await new Promise((resolve, reject) => {
+                        centralToVisMinConnection.query(sql, values, (err, resultsWriteCentralVisMin) => {
+                            if (err) {
+                                console.error('Central-VisMin DB -> Error executing SQL query:', err);
+                                reject(err);
+                                return;
+                            }
+                            resolve(resultsWriteCentralVisMin);
+                        });
+                    });
+                    if (resultsWriteCentralVisMin.exists) {
+                        console.log("Central-VisMin DB -> Transaction Success");
+                    }
+                } else {
+                    writeToLogFile(sql, values, "CentralVisMin");
+                    console.log("Central-VisMin DB -> Transaction Logged");
+                }
+
+                if (VisMinDB_State) {
+                    console.log("In Write-VisMin: Writing to VisMin");
+                    const resultsWriteVisMin = await new Promise((resolve, reject) => {
+                        visMinConnection.query(sql, values, (err, resultsWriteVisMin) => {
+                            if (err) {
+                                console.error('VisMin DB -> Error executing SQL query:', err);
+                                reject(err);
+                                return;
+                            }
+                            resolve(resultsWriteVisMin);
+                        });
+                    });
+                    if (resultsWriteVisMin.exists) {
+                        console.log("VisMin DB -> Transaction Success");
+                    }
+                } else {
+                    writeToLogFile(sql, values, "VisMin");
+                    console.log("VisMin DB -> Transaction Logged");
+                }
+
+                return "Success";
+            } catch (error) {
+                console.error('Error during write operation:', error);
+                response.status(500).json({ error: 'Internal server error' });
+                return;
+            }
+        }
+    }
+    if (action == "Read") {
+        console.log("In Read");
+        if (db == "Luzon") {
+            console.log("In Read-Luzon");
+            if (CentralDB_State == true) {
+                console.log("In Read-Luzon - Central");
+                const resultsReadCentralLuzon = await new Promise((resolve, reject) => {
+                    centralToLuzonConnection.query(sql, values, (err, resultsReadCentralLuzon) => {
+                        if (err) {
+                            console.error('Read Central-Luzon DB -> Error executing SQL query:', err);
+                            reject(err);
+                            return;
+                        }
+                        console.log("Central-Luzon DB -> Read Success")
+                        resolve(resultsReadCentralLuzon);
+                    });
+                });
+                return resultsReadCentralLuzon;
+            } else if (LuzonDB_State == true) {
+                console.log("In Read-Luzon - Luzon");
+                const resultsReadLuzon = await new Promise((resolve, reject) => {
+                    luzonConnection.query(sql, values, (err, resultsReadLuzon) => {
+                        if (err) {
+                            console.error('Read Luzon DB -> Error executing SQL query:', err);
+                            reject(err);
+                            return;
+                        }
+                        console.log("Luzon DB -> Read Success")
+                        resolve(resultsReadLuzon);
+                    });
+                });
+                return resultsReadLuzon;
+            }
+        }
+        if (db == "VisMin") {
+            console.log("In Read-VisMin");
+            if (CentralDB_State == true) {
+                console.log("In Read-VisMin - Central");
+                const resultsReadCentralVisMin = await new Promise((resolve, reject) => {
+                    centralToVisMinConnection.query(sql, values, (err, resultsReadCentralVisMin) => {
+                        if (err) {
+                            console.error('Read Central-VisMin DB -> Error executing SQL query:', err);
+                            reject(err);
+                            return;
+                        }
+                        console.log("Central-VisMin DB -> Read Success")
+                        resolve(resultsReadCentralVisMin);
+                    });
+                });
+                return resultsReadCentralVisMin;
+            } else if (VisMinDB_State == true) {
+                console.log("In Read-VisMin - VisMin");
+                const resultsReadVisMin = await new Promise((resolve, reject) => {
+                    visMinConnection.query(sql, values, (err, resultsReadVisMin) => {
+                        if (err) {
+                            console.error('Read VisMin DB -> Error executing SQL query:', err);
+                            reject(err);
+                            return;
+                        }
+                        console.log("VisMin DB -> Read Success")
+                        resolve(resultsReadVisMin);
+                    });
+                });
+                return resultsReadVisMin;
+            }
+        }
+    }
 }
 
 
@@ -214,33 +353,38 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 /*------------ HBS Functions-----------*/
 // Define routes
-app.get('/', (req, res) => {
-    let appointmentsFromLuzon, appointmentsFromVisMin;
-
-    // Query first 50 appointments from Luzon database
-    centralToLuzonConnection.query('SELECT * FROM DenormalizedAppointments LIMIT 50', (err, resultsLuzon) => {
-        if (err) {
-            console.error('Error fetching appointments from Luzon:', err);
-            res.status(500).send('Error fetching appointments from Luzon');
-            return;
-        }
-    appointmentsFromLuzon = resultsLuzon;
-        // Query first 50 appointments from VisMin database
-        centralToVisMinConnection.query('SELECT * FROM DenormalizedAppointments LIMIT 50', (err, resultsVisMin) => {
-            if (err) {
-                console.error('Error fetching appointments from VisMin:', err);
-                res.status(500).send('Error fetching appointments from VisMin');
-                return;
-            }
-        appointmentsFromVisMin = resultsVisMin;
-            // Combine appointments from both databases
-        const combinedAppointments = [...appointmentsFromLuzon, ...appointmentsFromVisMin];
-
-        // Render the main.hbs view with combined appointments data
-        res.render('main', { appointments: combinedAppointments });
-        });
-    });
+app.get('/getDB_Status', (req, res) => {
+    const dbStatus = {
+        VisMinDB_State: VisMinDB_State,
+        CentralDB_State: CentralDB_State,
+        LuzonDB_State: LuzonDB_State
+    };
+    console.log("DB Status: "+dbStatus);
+    console.log("VisMinDB_State: "+dbStatus.VisMinDB_State);
+    console.log("CentralDB_State: "+dbStatus.CentralDB_State);
+    console.log("LuzonDB_State: "+dbStatus.LuzonDB_State);
+    res.json(dbStatus);
 });
+
+
+app.get('/', async (req, res) => {
+    let appointmentsFromLuzon, appointmentsFromVisMin;
+    // Query first 50 appointments from Luzon database
+    query = 'SELECT * FROM DenormalizedAppointments LIMIT 50';
+
+    if(VisMinDB_State == true || CentralDB_State == true){
+        appointmentsFromVisMin = await handleDatabaseOperation(query, [], "Read", "VisMin");
+        //console.log("appointmentsFromVisMin: "+appointmentsFromVisMin);
+    }
+    if(LuzonDB_State == true || CentralDB_State == true){
+        appointmentsFromLuzon = await handleDatabaseOperation(query, [], "Read", "Luzon");
+        //console.log("appointmentsFromLuzon: "+appointmentsFromLuzon);
+    }
+    
+    const combinedAppointments = [...appointmentsFromLuzon, ...appointmentsFromVisMin];
+    res.render('main', { appointments: combinedAppointments });
+});
+
 
 // Route to handle lost connection
 app.get('/lostConnection', (req, res) => {
@@ -256,138 +400,89 @@ app.get('/openConnection', (req, res) => {
 
 
 // Route to get distinct values for a filter
-app.get('/getDistinctValues', (req, res) => {
+app.get('/getDistinctValues', async (req, res) => {
     console.log("In Get Distinct Values");
     const filter = req.query.filter;
     //console.log("Filter: " +filter);
+
+    let resultsLuzon = [];
+    let resultsVisMin = [];
     const sql = `SELECT DISTINCT ${filter} FROM DenormalizedAppointments LIMIT 50`;
-    
-    // Query distinct values from Luzon database
-    centralToLuzonConnection.query(sql, (errLuzon, resultsLuzon) => {
-        if (errLuzon) {
-            console.error('Error fetching distinct values from Luzon:', errLuzon);
-            res.status(500).json({ error: 'Internal server error' });
-            return;
-        }
-        
-        // Query distinct values from VisMin database
-        centralToVisMinConnection.query(sql, (errVisMin, resultsVisMin) => {
-            if (errVisMin) {
-                console.error('Error fetching distinct values from VisMin:', errVisMin);
-                res.status(500).json({ error: 'Internal server error' });
-                return;
-            }
-            
-            const valuesLuzon = resultsLuzon.map(result => result[filter]);
-            const valuesVisMin = resultsVisMin.map(result => result[filter]);
-            
-            // Combine values from both databases
-            const combinedValues = [...valuesLuzon, ...valuesVisMin];
-            res.json(combinedValues);
-        });
-    });
+    if(VisMinDB_State == true || CentralDB_State == true){
+        resultsLuzon = await handleDatabaseOperation(sql, [], "Read", "VisMin");
+        //console.log("appointmentsFromVisMin: "+appointmentsFromVisMin);
+    }
+    if(LuzonDB_State == true || CentralDB_State == true){
+        resultsVisMin = await handleDatabaseOperation(sql, [], "Read", "Luzon");
+        //console.log("appointmentsFromLuzon: "+appointmentsFromLuzon);
+    }
+    const valuesLuzon = resultsLuzon.map(result => result[filter]);
+    const valuesVisMin = resultsVisMin.map(result => result[filter]);
+    const combinedValues = [...valuesLuzon, ...valuesVisMin];
+    res.json(combinedValues);
 });
 
 // Route to filter appointments
-app.get('/filterAppointments', (req, res) => {
+app.get('/filterAppointments', async(req, res) => {
     console.log("In Filter Appointments");
     const filter = req.query.filter;
     const value = req.query.value;
     const sql = `SELECT * FROM DenormalizedAppointments WHERE ${filter} = ? LIMIT 50`;
-
-    // Query filtered appointments from Luzon database
-    centralToLuzonConnection.query(sql, [value], (errLuzon, resultsLuzon) => {
-        if (errLuzon) {
-            console.error('Error fetching filtered appointments from Luzon:', errLuzon);
-            res.status(500).json({ error: 'Internal server error' });
-            return;
-        }
-
-        // Query filtered appointments from VisMin database
-        centralToVisMinConnection.query(sql, [value], (errVisMin, resultsVisMin) => {
-            if (errVisMin) {
-                console.error('Error fetching filtered appointments from VisMin:', errVisMin);
-                res.status(500).json({ error: 'Internal server error' });
-                return;
-            }
-
-            const appointments = [...resultsLuzon, ...resultsVisMin];
-            console.log(appointments);
-            res.json(appointments);
-        });
-    });
+    let fAresultsLuzon = [];
+    let fAresultsVisMin = [];
+    if(VisMinDB_State == true || CentralDB_State == true){
+        fAresultsLuzon = await handleDatabaseOperation(sql, [value], "Read", "VisMin");
+        //console.log("appointmentsFromVisMin: "+appointmentsFromVisMin);
+    }
+    if(LuzonDB_State == true || CentralDB_State == true){
+        fAresultsVisMin = await handleDatabaseOperation(sql, [value], "Read", "Luzon");
+        //console.log("appointmentsFromLuzon: "+appointmentsFromLuzon);
+    }
+    const appointments = [...fAresultsLuzon, ...fAresultsVisMin];
+    res.json(appointments);
 });
 
 // Endpoint to check if apptid exists
-app.get('/checkApptid', (req, res) => {
+app.get('/checkApptid', async(req, res) => {
     //console.log("in /checkApptid");
     const apptid = req.query.apptid.toUpperCase(); // Convert to uppercase
     const region = req.query.region
-    // Select connection based on add_RegionName
-    let connection;
-    if (region === 'Luzon') {
-        connection = centralToLuzonConnection;
-        connection = luzonConnection; //bev
-    } else {
-        connection = centralToVisMinConnection;
-        connection = visMinConnection; //bev
-    }
-    // Query to check if apptid exists
     const query = `SELECT COUNT(*) AS count FROM DenormalizedAppointments WHERE apptid = ?`;
-    connection.query(query, [apptid], (error, results) => {
-        if (error) {
-            console.error('Error checking apptid:', error);
-            res.status(500).json({ error: 'Internal server error' });
-            return;
-        }
 
-        // Check if apptid exists
-        const apptidExists = results[0].count > 0;
-        res.json({ exists: apptidExists });
-    });
+    let chekAppIdResults = [];
+    if (region === 'Luzon') {
+        console.log("Check App Id Luzon");
+        chekAppIdResults = await handleDatabaseOperation(query, [apptid], "Read", "Luzon");
+    } else {
+        console.log("Check App Id VisMin");
+        chekAppIdResults = await handleDatabaseOperation(query, [apptid], "Read", "VisMin");
+    }
+    const apptidExists = chekAppIdResults[0].count > 0;
+    res.json({ exists: apptidExists });
 });
 
 // Endpoint to add appointment data to the database
 app.post('/addAppointment', async (req, res) => {
     const { add_pxid, add_clinicid, add_doctorid, add_status, add_QueueDate, add_app_type, add_is_Virtual, add_RegionName } = req.body;
-
+    let addAppResults;
     try {
         // Generate apptid
         const apptid = await generateApptId(add_RegionName);
-
-        // Select connection based on add_RegionName
-        let connection1;
-        let connection2;
-        if (add_RegionName === 'Central Luzon (III)' || add_RegionName === 'National Capital Region' || add_RegionName === 'National Capital Region (NCR)' || add_RegionName === 'Bicol Region (V)' || add_RegionName === 'MIMAROPA (IV-B)' || add_RegionName === 'CALABARZON (IV-A)' || add_RegionName === 'Ilocos Region (I)' || add_RegionName === 'Cordillera Administrative Region (CAR)' || add_RegionName === 'Cagayan Valley (II)') {
-            //console.log("add Going to Luzon");
-            connection1 = centralToLuzonConnection;
-            connection2 = luzonConnection;
-        } else {
-            //console.log("add Going to Vismin");
-            connection1 = centralToVisMinConnection;
-            connection2 = visMinConnection;
-        }
-
-        // Insert the appointment data into the database using the selected connection
         const query = 'INSERT INTO DenormalizedAppointments (pxid, clinicid, apptid, doctorid, app_type, is_virtual, status, QueueDate, StartTime, EndTime, RegionName) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)';
         const values = [add_pxid, add_clinicid, apptid, add_doctorid, add_app_type, add_is_Virtual, add_status, add_QueueDate, add_RegionName];
-        connection1.query(query, values, (error, results) => {
-            if (error) {
-                console.error('Error adding appointment:', error);
-                res.status(500).json({ error: 'Internal server error' });
-                return;
-            }
-            connection2.query(query, values, (error) => {
-                if (error) {
-                    console.error('Error adding appointment:', error);
-                    res.status(500).json({ error: 'Internal server error' });
-                    return;
-                }
-            });
-
-            // Respond with success message or inserted ID
-            res.json({ success: true, insertedId: results.insertId });
-        });
+        
+        
+        // Select connection based on add_RegionName
+        if (add_RegionName === 'Central Luzon (III)' || add_RegionName === 'National Capital Region' || add_RegionName === 'National Capital Region (NCR)' || add_RegionName === 'Bicol Region (V)' || add_RegionName === 'MIMAROPA (IV-B)' || add_RegionName === 'CALABARZON (IV-A)' || add_RegionName === 'Ilocos Region (I)' || add_RegionName === 'Cordillera Administrative Region (CAR)' || add_RegionName === 'Cagayan Valley (II)') {
+            //console.log("add Going to Luzon");
+            console.log("Add Luzon");
+            addAppResults = await handleDatabaseOperation(query, values, "Write", "Luzon");
+        } else {
+            console.log("Add VisMin");
+            addAppResults = await handleDatabaseOperation(query, values, "Write", "VisMin");
+        }
+        console.log("Add Result: " + addAppResults);
+        res.json({success: addAppResults});
     } catch (error) {
         console.error('Error generating apptid:', error);
         res.status(500).json({ error: 'Internal server error' });
